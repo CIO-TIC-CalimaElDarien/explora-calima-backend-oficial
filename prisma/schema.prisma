@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// CORE: Gestión de Usuarios y Roles
+// ==========================================
+model User {
+  id               Int       @id @default(autoincrement())
+  email            String    @unique
+  passwordHash     String
+  role             Role      @default(TOURIST)
+  createdAt        DateTime  @default(now())
+
+  comercioProfile  Comercio?
+  adminProfile     Admin?
+  reviews          Review[]
+}
+
+enum Role {
+  SUPERADMIN
+  ADMIN
+  COMERCIANTE
+  TOURIST
+}
+
+// ==========================================
+// MODULO A: Gestión del Comerciante
+// ==========================================
+model Comercio {
+  id              Int          @id @default(autoincrement())
+  userId          Int          @unique
+  user            User         @relation(fields: [userId], references: [id])
+  
+  name            String
+  description     String
+  category        Category
+  address         String
+  lat             Float
+  lng             Float
+  
+  legalDocUrl     String
+  status          Status       @default(PENDING)
+  verifiedById    Int?
+  verifiedBy      Admin?       @relation(fields: [verifiedById], references: [id])
+  verifiedAt      DateTime?
+
+  services        Service[]
+  reviews         Review[]
+}
+
+enum Category {
+  GASTRONOMIA
+  HOSPEDAJE
+  OPERADOR_TURISTICO
+  COMERCIO_LOCAL
+}
+
+enum Status {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+// ==========================================
+// PORTAFOLIO: Servicios de cada comercio
+// ==========================================
+model Service {
+  id          Int       @id @default(autoincrement())
+  comercioId  Int
+  comercio    Comercio  @relation(fields: [comercioId], references: [id])
+  title       String
+  description String
+  price       Float?
+  imageUrl    String?
+}
+
+// ==========================================
+// MODULO B: Panel Administrativo
+// ==========================================
+model Admin {
+  id               Int        @id @default(autoincrement())
+  userId           Int        @unique
+  user             User       @relation(fields: [userId], references: [id])
+  department       String
+  
+  approvedComercios Comercio[]
+}
+
+// ==========================================
+// MODULO C: Interacción del Turista
+// ==========================================
+model Review {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id])
+  comercioId  Int
+  comercio    Comercio  @relation(fields: [comercioId], references: [id])
+  
+  rating      Int
+  comment     String?
+  photoUrl    String?
+  createdAt   DateTime  @default(now())
+}
