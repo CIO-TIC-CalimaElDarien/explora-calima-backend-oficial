@@ -1,58 +1,109 @@
-// routes/public.js
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
-
 const router = express.Router();
+const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-/**
- * Endpoint: /comercios
- * Method: GET
- * Description: Obtiene el directorio de comercios aprobados.
- * Público: No requiere autenticación.
- */
-router.get('/comercios', async (req, res) => {
+// OBTENER CONFIGURACIÓN DEL HOME
+router.get('/settings/home', async (req, res) => {
   try {
-    // Permite buscar por categoría usando la URL (ej: /comercios?category=HOSPEDAJE)
-    const { category } = req.query;
-    
-    // Configuramos los filtros de la búsqueda
-    let queryOptions = {
-      where: {
-        status: 'APPROVED' // REGLA DE ORO: Solo mostrar los aprobados por la Alcaldía
-      },
-      // Seleccionamos solo los campos públicos (ocultamos legalDocUrl y userId)
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        category: true,
-        address: true,
-        lat: true,
-        lng: true,
-        services: true,
-        reviews: true    
-      }
-    };
+    const settings = await prisma.siteSettings.findUnique({ where: { id: 1 } });
+    res.json(settings || { carouselImages: [], aboutImageUrl: null });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al cargar la configuración' });
+  }
+});
 
-    // Si el turista seleccionó una categoría específica, aplicamos el filtro
-    if (category) {
-      queryOptions.where.category = category;
+// OBTENER EVENTOS
+router.get('/events', async (req, res) => {
+  try {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    const eventos = await prisma.event.findMany({
+      where: { date: { gte: hoy } },
+      orderBy: { date: 'asc' }
+    });
+    res.json(eventos);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al cargar los eventos' });
+  }
+});
+
+// ==========================================
+// DIRECTORIO GLOBAL (AHORA INCLUYE LAS RESEÑAS)
+// ==========================================
+router.get('/', async (req, res) => {
+  try {
+    const comercios = await prisma.comercio.findMany({
+      where: { status: 'APPROVED' },
+      include: { 
+        reviews: { select: { rating: true } } // <-- CRÍTICO: Traemos las estrellas para calcular el promedio en el frontend
+      },
+      orderBy: { id: 'desc' }
+    });
+    res.json(comercios);
+  } catch (error) {
+    res.status(500).json({ error: 'Error cargando comercios' });
+  }
+});
+
+// DETALLE DE UN COMERCIO Y SUS RESEÑAS
+router.get('/:id', async (req, res) => {
+  try {
+    const comercio = await prisma.comercio.findUnique({
+      where: { id: Number(req.params.id) },
+      include: { 
+        services: true,
+        gallery: { orderBy: { id: 'desc' } },
+        reviews: { orderBy: { createdAt: 'desc' } }
+      } 
+    });
+    
+    if (!comercio) return res.status(404).json({ error: 'Comercio no encontrado' });
+    res.json(comercio);
+  } catch (error) {
+    res.status(500).json({ error: 'Error cargando el comercio' });
+  }
+});
+
+// CREAR RESEÑA PÚBLICA SIN REGISTRO
+router.post('/:id/reviews', async (req, res) => {
+  try {
+    const comercioId = Number(req.params.id);
+    const { rating, comment, touristName, touristEmail, touristPhone, marketingConsent } = req.body;
+
+    if (!rating || !comment || !touristName || !touristEmail) {
+      return res.status(400).json({ error: 'Faltan campos obligatorios para publicar la reseña.' });
     }
 
-    // Buscamos en PostgreSQL
-    const comercios = await prisma.comercio.findMany(queryOptions);
-
-    // Respondemos con los datos
-    res.status(200).json({
-      status: 'success',
-      total: comercios.length,
-      data: comercios
+    const nuevaResena = await prisma.review.create({
+      data: {
+        comercioId,
+        rating: Number(rating),
+        comment,
+        touristName,
+        touristEmail,
+        touristPhone: touristPhone || null,
+        marketingConsent: Boolean(marketingConsent)
+      }
     });
 
+    res.status(201).json({ success: true, review: nuevaResena });
   } catch (error) {
-    console.error('[PUBLIC API ERROR]', error);
-    res.status(500).json({ error: 'Error interno al cargar el directorio turístico.' });
+    res.status(500).json({ error: 'Error al procesar la calificación' });
+  }
+});
+
+// Crear un nuevo ticket de soporte
+router.post('/support', async (req, res) => {
+  try {
+    const { name, email, phone, subject, message } = req.body;
+    const ticket = await prisma.supportTicket.create({
+      data: { name, email, phone, subject, message }
+    });
+    res.status(201).json({ success: true, ticket });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al enviar el mensaje de soporte.' });
   }
 });
 

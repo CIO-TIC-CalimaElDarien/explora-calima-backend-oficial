@@ -1,58 +1,54 @@
-// routes/reviews.js
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
-const verifyToken = require('../middlewares/authMiddleware');
-
 const router = express.Router();
+const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-/**
- * Endpoint: / (Crear Reseña)
- * Method: POST
- * Description: Permite a un usuario autenticado calificar un comercio.
- * Protegido: Requiere Token.
- */
-router.post('/', verifyToken, async (req, res) => {
+// Ruta pública: Crear una nueva reseña para un comercio
+router.post('/', async (req, res) => {
   try {
-    const { comercioId, rating, comment, photoUrl } = req.body;
-    const userId = req.user.userId;
+    const { rating, comment, comercioId, userId } = req.body;
 
-    // 1. Validaciones básicas
-    if (!comercioId || !rating) {
-      return res.status(400).json({ error: 'El ID del comercio y la calificación (rating) son obligatorios.' });
+    // Validación básica
+    if (!rating || !comercioId) {
+      return res.status(400).json({ error: 'Faltan datos obligatorios (rating y comercioId)' });
     }
 
-    if (rating < 1 || rating > 5) {
-      return res.status(400).json({ error: 'La calificación debe ser un número entre 1 y 5.' });
-    }
-
-    // 2. Verificar que el comercio existe y está aprobado
-    const comercio = await prisma.comercio.findUnique({ where: { id: parseInt(comercioId) } });
-    
-    if (!comercio || comercio.status !== 'APPROVED') {
-      return res.status(404).json({ error: 'El comercio no existe o aún no está aprobado para recibir reseñas.' });
-    }
-
-    // 3. Crear la reseña en la base de datos
-    const nuevaResena = await prisma.review.create({
+    const nuevaReview = await prisma.review.create({
       data: {
-        userId,
-        comercioId: parseInt(comercioId),
-        rating: parseInt(rating),
-        comment,
-        photoUrl
+        rating: Number(rating),
+        comment: comment || '',
+        comercioId: Number(comercioId),
+        // Si el turista está logueado, guardamos su ID. Si no, queda como anónimo (null)
+        userId: userId ? Number(userId) : null
       }
     });
 
-    res.status(201).json({
-      status: 'success',
-      message: 'Reseña publicada exitosamente.',
-      review: nuevaResena
+    res.status(201).json({ success: true, review: nuevaReview });
+  } catch (error) {
+    console.error("❌ Error creando reseña:", error);
+    res.status(500).json({ error: 'Error al guardar la reseña' });
+  }
+});
+
+// Ruta pública: Obtener todas las reseñas de un comercio específico
+router.get('/comercio/:comercioId', async (req, res) => {
+  try {
+    const { comercioId } = req.params;
+    
+    const reviews = await prisma.review.findMany({
+      where: { comercioId: Number(comercioId) },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: { email: true } // Opcional: trae el correo de quien comentó (si existe)
+        }
+      }
     });
 
+    res.json(reviews);
   } catch (error) {
-    console.error('[REVIEW ERROR]', error);
-    res.status(500).json({ error: 'Error interno al publicar la reseña.' });
+    console.error("❌ Error cargando reseñas:", error);
+    res.status(500).json({ error: 'Error al obtener reseñas' });
   }
 });
 
