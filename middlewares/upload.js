@@ -2,7 +2,7 @@ const multer = require('multer');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const cloudinary = require('cloudinary').v2;
 
-// Configuración con las variables que pondremos en Render
+// Se conectará automáticamente con las llaves que pondremos en Render
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -12,10 +12,11 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: async (req, file) => {
-    // Soporte para PDFs (RUT) y fotografías
+    // Si es el RUT (PDF), lo guarda en formato raw/pdf
     if (file.mimetype === 'application/pdf') {
       return { folder: 'comercios', format: 'pdf', resource_type: 'raw' };
     }
+    // Si es el logo o fotos de galería, los guarda como imágenes
     return { folder: 'comercios', format: 'jpg', resource_type: 'image' };
   },
 });
