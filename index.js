@@ -42,6 +42,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/public', require('./routes/public'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/comercios', require('./routes/comercios')); // <- LÍNEA AÑADIDA: Desbloquea el panel del comerciante
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
