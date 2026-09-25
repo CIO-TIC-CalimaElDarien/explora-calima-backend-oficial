@@ -1,19 +1,26 @@
 const multer = require('multer');
-const path = require('path');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('cloudinary').v2;
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    // Todos los archivos de los comercios irán a esta carpeta
-    cb(null, 'uploads/comercios/');
+// Configuración con las variables que pondremos en Render
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: async (req, file) => {
+    // Soporte para PDFs (RUT) y fotografías
+    if (file.mimetype === 'application/pdf') {
+      return { folder: 'comercios', format: 'pdf', resource_type: 'raw' };
+    }
+    return { folder: 'comercios', format: 'jpg', resource_type: 'image' };
   },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
 });
 
 const fileFilter = (req, file, cb) => {
-  // AQUÍ ESTÁ LA MAGIA: Ahora permitimos imágenes Y archivos PDF
   if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
     cb(null, true);
   } else {
@@ -21,9 +28,5 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-const upload = multer({ 
-  storage: storage,
-  fileFilter: fileFilter 
-});
-
+const upload = multer({ storage: storage, fileFilter: fileFilter });
 module.exports = upload;
