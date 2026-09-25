@@ -42,9 +42,8 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/public', require('./routes/public'));
 app.use('/api/admin', require('./routes/admin'));
-app.use('/api/comercios', require('./routes/comercios'));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor backend blindado y corriendo en el puerto ${PORT}`);
+  console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
